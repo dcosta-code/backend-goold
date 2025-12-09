@@ -1,0 +1,11 @@
+.claude
+mcp.json
+CLAUDE.md
+node_modules/
+dist/
+.env
+*.log
+.DS_Store
+coverage/
+.mcp.json
+thoughts/

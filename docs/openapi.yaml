@@ -1,0 +1,1743 @@
+openapi: 3.1.0
+info:
+  title: Backend API
+  description: API REST com Express, TypeScript e Sequelize
+  version: 1.0.0
+  contact:
+    name: API Support
+
+servers:
+  - url: http://localhost:3000/api
+    description: Development server
+  - url: https://api.example.com/api
+    description: Production server
+
+tags:
+  - name: Health
+    description: Health check endpoint
+  - name: Authentication
+    description: Customer authentication endpoints
+  - name: Customer
+    description: Customer profile management endpoints
+  - name: Employee Authentication
+    description: Employee authentication endpoints
+  - name: Employee
+    description: Employee management endpoints
+  - name: Settings
+    description: System settings management (tags, message templates, email signature, configurations)
+  - name: Tickets
+    description: Support ticket management
+  - name: WebSocket
+    description: Real-time chat communication via Socket.io
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Returns the application status
+      operationId: getHealth
+      responses:
+        "200":
+          description: Application is running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: "UP"
+
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register a new customer
+      description: Creates a new customer account with CPF, password, and personal information
+      operationId: registerCustomer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterCustomerRequest"
+            example:
+              cpf: "12345678901"
+              password: "123456"
+              fullName: "John Doe"
+              email: "john.doe@example.com"
+              phone: "11987654321"
+      responses:
+        "201":
+          description: Customer registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerResponse"
+              example:
+                externalId: "550e8400-e29b-41d4-a716-446655440000"
+                cpf: "12345678901"
+                fullName: "John Doe"
+                email: "john.doe@example.com"
+                phone: "11987654321"
+                createdAt: "2024-01-15T10:30:00.000Z"
+                updatedAt: "2024-01-15T10:30:00.000Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Customer login
+      description: Authenticates a customer with CPF and password, returns JWT tokens
+      operationId: loginCustomer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+            example:
+              cpf: "12345678901"
+              password: "123456"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+              example:
+                accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                refreshToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: Generates a new access token using a valid refresh token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshTokenRequest"
+            example:
+              refreshToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      responses:
+        "200":
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessTokenResponse"
+              example:
+                accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /auth/forgot-password:
+    post:
+      tags:
+        - Authentication
+      summary: Request password reset
+      description: Sends a 6-digit OTP code to the customer's email for password reset. Code expires in 15 minutes.
+      operationId: forgotPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+            example:
+              cpf: "12345678901"
+      responses:
+        "200":
+          description: OTP code sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForgotPasswordResponse"
+              example:
+                maskedEmail: "joh***oe@example.com"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          description: CPF not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error:
+                  code: "CPF_NOT_FOUND"
+                  message: "CPF not found"
+
+  /auth/verify-code:
+    post:
+      tags:
+        - Authentication
+      summary: Verify OTP code
+      description: Verifies the OTP code sent to customer's email and returns a reset token valid for 30 minutes.
+      operationId: verifyCode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyCodeRequest"
+            example:
+              cpf: "12345678901"
+              code: "12345"
+      responses:
+        "200":
+          description: Code verified successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyCodeResponse"
+              example:
+                token: "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /auth/reset-password:
+    post:
+      tags:
+        - Authentication
+      summary: Reset password
+      description: Resets the customer password using the token obtained from verify-code endpoint.
+      operationId: resetPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+            example:
+              token: "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2"
+              newPassword: "654321"
+      responses:
+        "200":
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: "Senha alterada com sucesso"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /customer/profile:
+    get:
+      tags:
+        - Customer
+      summary: Get customer profile
+      description: Returns the authenticated customer's profile information for the My Account screen
+      operationId: getCustomerProfile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Customer profile data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerProfileResponse"
+              example:
+                externalId: "550e8400-e29b-41d4-a716-446655440000"
+                cpf: "12345678901"
+                fullName: "John Doe"
+                email: "john.doe@example.com"
+                phone: "11987654321"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags:
+        - Customer
+      summary: Update customer profile
+      description: Updates the authenticated customer's profile information. At least one field must be provided.
+      operationId: updateCustomerProfile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCustomerProfileRequest"
+            example:
+              fullName: "John Updated"
+              email: "john.updated@example.com"
+              phone: "11999999999"
+      responses:
+        "200":
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerResponse"
+              example:
+                externalId: "550e8400-e29b-41d4-a716-446655440000"
+                cpf: "12345678901"
+                fullName: "John Updated"
+                email: "john.updated@example.com"
+                phone: "11999999999"
+                createdAt: "2024-01-15T10:30:00.000Z"
+                updatedAt: "2024-01-15T12:00:00.000Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /employee/auth/login:
+    post:
+      tags:
+        - Employee Authentication
+      summary: Employee login
+      description: Authenticates an employee with email and password, returns JWT tokens with roles
+      operationId: loginEmployee
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeLoginRequest"
+            example:
+              email: "admin@goold.com"
+              password: "Admin123"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+              example:
+                accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                refreshToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /employee/auth/refresh:
+    post:
+      tags:
+        - Employee Authentication
+      summary: Refresh employee access token
+      description: Generates a new access token using a valid employee refresh token
+      operationId: refreshEmployeeToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshTokenRequest"
+            example:
+              refreshToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      responses:
+        "200":
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessTokenResponse"
+              example:
+                accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /employee:
+    get:
+      tags:
+        - Employee
+      summary: List employees
+      description: Returns a list of all employees. Supports search by email, fullName, or role name. Requires admin role.
+      operationId: listEmployees
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Search term to filter employees by email, fullName, or role name
+          example: "admin"
+      responses:
+        "200":
+          description: List of employees
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeResponse"
+              example:
+                - externalId: "550e8400-e29b-41d4-a716-446655440000"
+                  email: "admin@goold.com"
+                  fullName: "Admin User"
+                  isActive: true
+                  roles: ["admin"]
+                  createdAt: "2024-01-15T10:30:00.000Z"
+                  updatedAt: "2024-01-15T10:30:00.000Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags:
+        - Employee
+      summary: Create new employee
+      description: Creates a new employee account. Requires admin role and employees.create permission.
+      operationId: createEmployee
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEmployeeRequest"
+            example:
+              email: "support@goold.com"
+              password: "Support123"
+              fullName: "Support User"
+              roleIds: [2]
+      responses:
+        "201":
+          description: Employee created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeResponse"
+              example:
+                externalId: "550e8400-e29b-41d4-a716-446655440000"
+                email: "support@goold.com"
+                fullName: "Support User"
+                isActive: true
+                roles: ["support"]
+                createdAt: "2024-01-15T10:30:00.000Z"
+                updatedAt: "2024-01-15T10:30:00.000Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /settings:
+    get:
+      tags:
+        - Settings
+      summary: Get all settings
+      description: Returns all system settings including tags, message templates, email signature, and configurations. Requires configurations.manager permission.
+      operationId: getAllSettings
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: All settings data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AllSettingsResponse"
+              example:
+                tags:
+                  - externalId: "550e8400-e29b-41d4-a716-446655440001"
+                    name: "Urgente"
+                    backgroundColor: "#FF0000"
+                    textColor: "#FFFFFF"
+                    createdAt: "2024-01-15T10:30:00.000Z"
+                    updatedAt: "2024-01-15T10:30:00.000Z"
+                  - externalId: "550e8400-e29b-41d4-a716-446655440002"
+                    name: "Importante"
+                    backgroundColor: "#FFA500"
+                    textColor: "#000000"
+                    createdAt: "2024-01-15T10:30:00.000Z"
+                    updatedAt: "2024-01-15T10:30:00.000Z"
+                messageTemplates:
+                  - externalId: "660e8400-e29b-41d4-a716-446655440001"
+                    name: "Boas-vindas"
+                    htmlContent: "<p>Ola, seja bem-vindo!</p>"
+                    createdAt: "2024-01-15T10:30:00.000Z"
+                    updatedAt: "2024-01-15T10:30:00.000Z"
+                emailSignature:
+                  externalId: "770e8400-e29b-41d4-a716-446655440001"
+                  htmlContent: "<p>Atenciosamente,<br>Equipe Goold</p>"
+                  createdAt: "2024-01-15T10:30:00.000Z"
+                  updatedAt: "2024-01-15T10:30:00.000Z"
+                configurations:
+                  - externalId: "880e8400-e29b-41d4-a716-446655440001"
+                    code: "DIAS_ATENDIMENTO_SEMANA"
+                    display: "Dias atendimento semana"
+                    options:
+                      - code: "SEG"
+                        display: "Segunda-feira"
+                      - code: "TER"
+                        display: "Terca-feira"
+                    selected:
+                      - "SEG"
+                      - "TER"
+                    ranking: 1
+                    isActive: true
+                    createdAt: "2025-01-01T00:00:00.000Z"
+                    updatedAt: "2025-01-01T00:00:00.000Z"
+                  - externalId: "880e8400-e29b-41d4-a716-446655440002"
+                    code: "HORARIO_ATENDIMENTO_SEMANA"
+                    display: "Horario atendimento semana"
+                    options:
+                      - code: "08:00"
+                        display: "08:00"
+                      - code: "18:00"
+                        display: "18:00"
+                    selected:
+                      - "08:00"
+                      - "18:00"
+                    ranking: 2
+                    isActive: true
+                    createdAt: "2025-01-01T00:00:00.000Z"
+                    updatedAt: "2025-01-01T00:00:00.000Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    put:
+      tags:
+        - Settings
+      summary: Update settings
+      description: Updates system settings. Supports partial updates - only provided sections will be updated. Tags and message templates support upsert (create if externalId is null, update otherwise). Requires configurations.manager permission.
+      operationId: updateAllSettings
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSettingsRequest"
+            example:
+              tags:
+                - name: "Urgente"
+                  backgroundColor: "#FF0000"
+                  textColor: "#FFFFFF"
+                - externalId: "550e8400-e29b-41d4-a716-446655440002"
+                  name: "Importante Atualizado"
+                  backgroundColor: "#FFA500"
+                  textColor: "#000000"
+              messageTemplates:
+                - name: "Boas-vindas"
+                  htmlContent: "<p>Ola, seja bem-vindo ao nosso suporte!</p>"
+              emailSignature:
+                htmlContent: "<p>Atenciosamente,<br>Equipe de Suporte Goold</p>"
+              configurations:
+                - externalId: "880e8400-e29b-41d4-a716-446655440001"
+                  selected: ["SEG", "TER", "QUA"]
+      responses:
+        "200":
+          description: Settings updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AllSettingsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /tickets/has-active:
+    get:
+      tags:
+        - Tickets
+      summary: Check if customer has active ticket
+      description: Returns whether the authenticated customer has any ticket with status 'open' or 'in_progress'.
+      operationId: hasActiveTicket
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Active ticket status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HasActiveTicketResponse"
+              example:
+                hasActiveTicket: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /employee/{externalId}:
+    get:
+      tags:
+        - Employee
+      summary: Get employee by ID
+      description: Returns a single employee by external ID. Requires employees.manager permission.
+      operationId: getEmployee
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: externalId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Employee external ID (UUID)
+      responses:
+        "200":
+          description: Employee found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeResponse"
+              example:
+                externalId: "550e8400-e29b-41d4-a716-446655440000"
+                email: "admin@goold.com"
+                fullName: "Admin User"
+                isActive: true
+                roles: ["admin"]
+                createdAt: "2024-01-15T10:30:00.000Z"
+                updatedAt: "2024-01-15T10:30:00.000Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags:
+        - Employee
+      summary: Update employee
+      description: Updates an employee's information. Requires employees.manager permission. At least one field must be provided.
+      operationId: updateEmployee
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: externalId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Employee external ID (UUID)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEmployeeRequest"
+            example:
+              fullName: "Updated Name"
+              isActive: false
+      responses:
+        "200":
+          description: Employee updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeResponse"
+              example:
+                externalId: "550e8400-e29b-41d4-a716-446655440000"
+                email: "support@goold.com"
+                fullName: "Updated Name"
+                isActive: false
+                roles: ["support"]
+                createdAt: "2024-01-15T10:30:00.000Z"
+                updatedAt: "2024-01-15T12:00:00.000Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags:
+        - Employee
+      summary: Delete employee
+      description: Permanently deletes an employee. Requires admin role.
+      operationId: deleteEmployee
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: externalId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Employee external ID (UUID)
+      responses:
+        "204":
+          description: Employee deleted successfully
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+x-websocket:
+  description: |
+    ## WebSocket API (Socket.io)
+
+    The application uses Socket.io for real-time chat communication between customers and employees on support tickets.
+
+    ### Connection
+
+    **URL**: `ws://localhost:3000` (development) or `wss://api.example.com` (production)
+
+    **Authentication**: Pass JWT access token in the `auth` object during connection:
+    ```javascript
+    const socket = io('ws://localhost:3000', {
+      auth: {
+        token: 'your-jwt-access-token'
+      }
+    });
+    ```
+
+    ### Authentication Errors
+
+    If authentication fails, the connection will be rejected with one of these errors:
+    - `Authentication required` - No token provided
+    - `Invalid token type` - Token is not an access token
+    - `Invalid or expired token` - Token verification failed
+
+    ### Rooms
+
+    Each ticket has its own room named `ticket:{ticketExternalId}`. Users must join a room to receive messages for that ticket.
+
+    ### Access Control
+
+    - **Customers**: Can only access tickets they own
+    - **Employees**: Can access tickets assigned to them
+    - **Admins**: Can access all tickets
+
+  events:
+    client-to-server:
+      join:
+        summary: Join a ticket room
+        description: Join a ticket room to receive real-time messages. User must have access to the ticket.
+        payload:
+          type: object
+          required:
+            - ticketId
+          properties:
+            ticketId:
+              type: string
+              format: uuid
+              description: External ID of the ticket to join
+          example:
+            ticketId: "550e8400-e29b-41d4-a716-446655440000"
+        responses:
+          - event: chat_event
+            type: joined
+            description: Successfully joined the ticket room
+          - event: chat_event
+            type: error
+            description: Access denied or ticket not found
+
+      leave:
+        summary: Leave a ticket room
+        description: Leave a ticket room to stop receiving messages for that ticket.
+        payload:
+          type: object
+          required:
+            - ticketId
+          properties:
+            ticketId:
+              type: string
+              format: uuid
+              description: External ID of the ticket to leave
+          example:
+            ticketId: "550e8400-e29b-41d4-a716-446655440000"
+        responses:
+          - event: chat_event
+            type: left
+            description: Successfully left the ticket room
+
+      send_message:
+        summary: Send a message to a ticket
+        description: Send a new message to a ticket. The sender must have access to the ticket (owner customer, assigned employee, or admin).
+        payload:
+          type: object
+          required:
+            - tempId
+            - ticketId
+            - content
+          properties:
+            tempId:
+              type: string
+              description: Temporary client-side ID for tracking message status (for optimistic updates)
+            ticketId:
+              type: string
+              format: uuid
+              description: External ID of the ticket
+            content:
+              type: string
+              minLength: 1
+              description: Message content (cannot be empty)
+          example:
+            tempId: "temp-123456"
+            ticketId: "550e8400-e29b-41d4-a716-446655440000"
+            content: "Hello, how can I help you?"
+        responses:
+          - event: chat_event
+            type: message_status
+            status: sent
+            description: Message was sent successfully
+          - event: chat_event
+            type: message_status
+            status: error
+            description: Failed to send message
+          - event: chat_event
+            type: new_message
+            description: Broadcast to all room members with the new message
+
+    server-to-client:
+      chat_event:
+        summary: Chat event from server
+        description: All server events are sent through the `chat_event` event with different `type` values.
+        variants:
+          - type: joined
+            description: Confirmation that user successfully joined a ticket room
+            payload:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: [joined]
+                ticketId:
+                  type: string
+                  format: uuid
+              example:
+                type: "joined"
+                ticketId: "550e8400-e29b-41d4-a716-446655440000"
+
+          - type: left
+            description: Confirmation that user left a ticket room
+            payload:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: [left]
+                ticketId:
+                  type: string
+                  format: uuid
+              example:
+                type: "left"
+                ticketId: "550e8400-e29b-41d4-a716-446655440000"
+
+          - type: error
+            description: Error event for join/leave operations
+            payload:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: [error]
+                message:
+                  type: string
+              example:
+                type: "error"
+                message: "Access denied to this ticket"
+
+          - type: message_status
+            description: Status update for a sent message (sent to sender only)
+            payload:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: [message_status]
+                tempId:
+                  type: string
+                  description: The temporary ID provided when sending
+                status:
+                  type: string
+                  enum: [sent, error]
+                messageId:
+                  type: string
+                  format: uuid
+                  description: The server-generated message ID (only when status is sent)
+                message:
+                  type: string
+                  description: Error message (only when status is error)
+              examples:
+                success:
+                  type: "message_status"
+                  tempId: "temp-123456"
+                  status: "sent"
+                  messageId: "660e8400-e29b-41d4-a716-446655440001"
+                error:
+                  type: "message_status"
+                  tempId: "temp-123456"
+                  status: "error"
+                  message: "Message content cannot be empty"
+
+          - type: new_message
+            description: New message broadcast to all room members
+            payload:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: [new_message]
+                message:
+                  $ref: "#/components/schemas/ChatMessageResponse"
+              example:
+                type: "new_message"
+                message:
+                  externalId: "660e8400-e29b-41d4-a716-446655440001"
+                  ticketExternalId: "550e8400-e29b-41d4-a716-446655440000"
+                  senderType: "employee"
+                  senderId: 1
+                  content: "Hello, how can I help you?"
+                  createdAt: "2024-01-15T10:30:00.000Z"
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - UP
+          description: Application status
+
+    ErrorResponse:
+      type: object
+      required:
+        - status
+        - statusCode
+        - message
+      properties:
+        status:
+          type: string
+          enum:
+            - error
+          description: Error status
+        statusCode:
+          type: integer
+          description: HTTP status code
+        message:
+          type: string
+          description: Error message
+        stack:
+          type: string
+          description: Stack trace (only in development)
+
+    RegisterCustomerRequest:
+      type: object
+      required:
+        - cpf
+        - password
+        - fullName
+        - email
+        - phone
+      properties:
+        cpf:
+          type: string
+          pattern: "^\\d{11}$"
+          description: Brazilian CPF (11 digits, numbers only)
+          example: "12345678901"
+        password:
+          type: string
+          pattern: "^\\d{6}$"
+          description: Numeric password (6 digits)
+          example: "123456"
+        fullName:
+          type: string
+          minLength: 2
+          maxLength: 255
+          description: Customer full name
+          example: "John Doe"
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          description: Customer email address
+          example: "john.doe@example.com"
+        phone:
+          type: string
+          pattern: "^\\d{11}$"
+          description: Phone number with DDD (11 digits, numbers only)
+          example: "11987654321"
+
+    CustomerResponse:
+      type: object
+      required:
+        - externalId
+        - cpf
+        - fullName
+        - email
+        - phone
+        - createdAt
+        - updatedAt
+      properties:
+        externalId:
+          type: string
+          format: uuid
+          description: Public customer identifier (UUID v4)
+        cpf:
+          type: string
+          description: Customer CPF
+        fullName:
+          type: string
+          description: Customer full name
+        email:
+          type: string
+          format: email
+          description: Customer email
+        phone:
+          type: string
+          description: Customer phone number
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CustomerProfileResponse:
+      type: object
+      required:
+        - externalId
+        - cpf
+        - fullName
+        - email
+        - phone
+      properties:
+        externalId:
+          type: string
+          format: uuid
+          description: Public customer identifier (UUID v4)
+        cpf:
+          type: string
+          description: Customer CPF (11 digits)
+        fullName:
+          type: string
+          description: Customer full name
+        email:
+          type: string
+          format: email
+          description: Customer email
+        phone:
+          type: string
+          description: Customer phone number (11 digits)
+
+    LoginRequest:
+      type: object
+      required:
+        - cpf
+        - password
+      properties:
+        cpf:
+          type: string
+          pattern: "^\\d{11}$"
+          description: Brazilian CPF (11 digits)
+          example: "12345678901"
+        password:
+          type: string
+          pattern: "^\\d{6}$"
+          description: Numeric password (6 digits)
+          example: "123456"
+
+    TokenResponse:
+      type: object
+      required:
+        - accessToken
+        - refreshToken
+      properties:
+        accessToken:
+          type: string
+          description: JWT access token
+        refreshToken:
+          type: string
+          description: JWT refresh token
+
+    RefreshTokenRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+          description: Valid refresh token
+
+    AccessTokenResponse:
+      type: object
+      required:
+        - accessToken
+      properties:
+        accessToken:
+          type: string
+          description: New JWT access token
+
+    ForgotPasswordRequest:
+      type: object
+      required:
+        - cpf
+      properties:
+        cpf:
+          type: string
+          pattern: "^\\d{11}$"
+          description: Customer CPF (11 digits)
+          example: "12345678901"
+
+    ForgotPasswordResponse:
+      type: object
+      required:
+        - maskedEmail
+      properties:
+        maskedEmail:
+          type: string
+          description: Masked email address with 30% of characters before @ censored (e.g., "joh***oe@example.com")
+          example: "joh***oe@example.com"
+        code:
+          type: string
+          pattern: "^\\d{5}$"
+          description: OTP code (only returned in development mode)
+          example: "12345"
+
+    VerifyCodeRequest:
+      type: object
+      required:
+        - cpf
+        - code
+      properties:
+        cpf:
+          type: string
+          pattern: "^\\d{11}$"
+          description: Customer CPF (11 digits)
+          example: "12345678901"
+        code:
+          type: string
+          pattern: "^\\d{5}$"
+          description: 5-digit OTP code (use "12345" for testing)
+          example: "12345"
+
+    VerifyCodeResponse:
+      type: object
+      required:
+        - token
+      properties:
+        token:
+          type: string
+          minLength: 64
+          maxLength: 64
+          description: Reset token (64 hex characters) valid for 30 minutes
+          example: "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2"
+
+    ResetPasswordRequest:
+      type: object
+      required:
+        - token
+        - newPassword
+      properties:
+        token:
+          type: string
+          minLength: 64
+          maxLength: 64
+          description: Reset token obtained from verify-code endpoint
+          example: "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2"
+        newPassword:
+          type: string
+          pattern: "^\\d{6}$"
+          description: New numeric password (6 digits)
+          example: "654321"
+
+    MessageResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: Response message
+
+    UpdateCustomerProfileRequest:
+      type: object
+      minProperties: 1
+      properties:
+        fullName:
+          type: string
+          minLength: 2
+          maxLength: 255
+          description: Customer full name
+          example: "John Updated"
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          description: Customer email address
+          example: "john.updated@example.com"
+        phone:
+          type: string
+          pattern: "^\\d{11}$"
+          description: Phone number with DDD (11 digits, numbers only)
+          example: "11999999999"
+        password:
+          type: string
+          pattern: "^\\d{6}$"
+          description: Numeric password (6 digits)
+          example: "654321"
+
+    EmployeeLoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          description: Employee email address
+          example: "admin@goold.com"
+        password:
+          type: string
+          minLength: 8
+          maxLength: 255
+          description: Alphanumeric password (minimum 8 characters)
+          example: "Admin123"
+
+    CreateEmployeeRequest:
+      type: object
+      required:
+        - email
+        - password
+        - fullName
+        - roleIds
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          description: Employee email address
+          example: "support@goold.com"
+        password:
+          type: string
+          minLength: 8
+          maxLength: 255
+          pattern: "^(?=.*[a-zA-Z])(?=.*[0-9])"
+          description: Alphanumeric password (minimum 8 characters, must contain letters and numbers)
+          example: "Support123"
+        fullName:
+          type: string
+          minLength: 2
+          maxLength: 255
+          description: Employee full name
+          example: "Support User"
+        roleIds:
+          type: array
+          items:
+            type: integer
+          minItems: 1
+          description: Array of role IDs to assign to the employee
+          example: [2]
+
+    UpdateEmployeeRequest:
+      type: object
+      minProperties: 1
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          description: Employee email address
+          example: "updated@goold.com"
+        password:
+          type: string
+          minLength: 8
+          maxLength: 255
+          pattern: "^(?=.*[a-zA-Z])(?=.*[0-9])"
+          description: Alphanumeric password (minimum 8 characters, must contain letters and numbers)
+          example: "NewPass123"
+        fullName:
+          type: string
+          minLength: 2
+          maxLength: 255
+          description: Employee full name
+          example: "Updated Name"
+        isActive:
+          type: boolean
+          description: Whether the employee account is active
+          example: false
+        roleIds:
+          type: array
+          items:
+            type: integer
+          minItems: 1
+          description: Array of role IDs to assign to the employee
+          example: [1, 2]
+
+    EmployeeResponse:
+      type: object
+      required:
+        - externalId
+        - email
+        - fullName
+        - isActive
+        - roles
+        - createdAt
+        - updatedAt
+      properties:
+        externalId:
+          type: string
+          format: uuid
+          description: Public employee identifier (UUID v4)
+        email:
+          type: string
+          format: email
+          description: Employee email
+        fullName:
+          type: string
+          description: Employee full name
+        isActive:
+          type: boolean
+          description: Whether the employee account is active
+        roles:
+          type: array
+          items:
+            type: string
+          description: Array of role names assigned to the employee
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ConfigurationOption:
+      type: object
+      required:
+        - code
+        - display
+      properties:
+        code:
+          type: string
+          maxLength: 50
+        display:
+          type: string
+          maxLength: 255
+
+    ConfigurationResponse:
+      type: object
+      required:
+        - externalId
+        - code
+        - display
+        - options
+        - selected
+        - ranking
+        - isActive
+        - createdAt
+        - updatedAt
+      properties:
+        externalId:
+          type: string
+          format: uuid
+        code:
+          type: string
+          maxLength: 100
+        display:
+          type: string
+          maxLength: 255
+        options:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConfigurationOption"
+        selected:
+          type: array
+          items:
+            type: string
+        ranking:
+          type: integer
+          description: Order in which configurations should be displayed (ascending)
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    TagResponse:
+      type: object
+      description: Tag for categorizing tickets
+      required:
+        - externalId
+        - name
+        - backgroundColor
+        - textColor
+        - createdAt
+        - updatedAt
+      properties:
+        externalId:
+          type: string
+          format: uuid
+          description: Public tag identifier (UUID v4)
+        name:
+          type: string
+          maxLength: 100
+          description: Tag display name
+        backgroundColor:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+          description: Background color in hex format
+        textColor:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+          description: Text color in hex format
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    TagItemRequest:
+      type: object
+      description: Tag item for create/update operations
+      required:
+        - name
+        - backgroundColor
+        - textColor
+      properties:
+        externalId:
+          type: string
+          format: uuid
+          nullable: true
+          description: External ID for update (null for create)
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Tag display name
+        backgroundColor:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+          description: Background color in hex format (e.g., #FF0000)
+        textColor:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+          description: Text color in hex format (e.g., #FFFFFF)
+
+    MessageTemplateResponse:
+      type: object
+      description: Pre-defined message template for support agents
+      required:
+        - externalId
+        - name
+        - htmlContent
+        - createdAt
+        - updatedAt
+      properties:
+        externalId:
+          type: string
+          format: uuid
+          description: Public template identifier (UUID v4)
+        name:
+          type: string
+          maxLength: 100
+          description: Template name
+        htmlContent:
+          type: string
+          description: HTML content of the template (sanitized)
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    MessageTemplateItemRequest:
+      type: object
+      description: Message template item for create/update operations
+      required:
+        - name
+        - htmlContent
+      properties:
+        externalId:
+          type: string
+          format: uuid
+          nullable: true
+          description: External ID for update (null for create)
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Template name
+        htmlContent:
+          type: string
+          minLength: 1
+          maxLength: 5242880
+          description: HTML content (will be sanitized for XSS protection)
+
+    EmailSignatureResponse:
+      type: object
+      description: Global email signature for outgoing emails
+      required:
+        - externalId
+        - htmlContent
+        - createdAt
+        - updatedAt
+      properties:
+        externalId:
+          type: string
+          format: uuid
+          description: Public signature identifier (UUID v4)
+        htmlContent:
+          type: string
+          description: HTML content of the signature (sanitized)
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    UpdateEmailSignatureRequest:
+      type: object
+      description: Email signature update request
+      required:
+        - htmlContent
+      properties:
+        htmlContent:
+          type: string
+          maxLength: 5242880
+          description: HTML content (can be empty string, will be sanitized)
+
+    UpdateConfigurationItemRequest:
+      type: object
+      description: Configuration item update request
+      required:
+        - externalId
+        - selected
+      properties:
+        externalId:
+          type: string
+          format: uuid
+          description: Configuration external ID
+        selected:
+          type: array
+          items:
+            type: string
+            maxLength: 50
+          description: Array of selected option codes
+
+    AllSettingsResponse:
+      type: object
+      description: Complete settings response containing all system configurations
+      required:
+        - tags
+        - messageTemplates
+        - configurations
+      properties:
+        tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/TagResponse"
+          description: List of available tags
+        messageTemplates:
+          type: array
+          items:
+            $ref: "#/components/schemas/MessageTemplateResponse"
+          description: List of message templates
+        emailSignature:
+          $ref: "#/components/schemas/EmailSignatureResponse"
+          nullable: true
+          description: Global email signature (null if not set)
+        configurations:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConfigurationResponse"
+          description: List of system configurations ordered by ranking (ascending)
+
+    UpdateSettingsRequest:
+      type: object
+      description: Settings update request. Only provided sections will be updated.
+      minProperties: 1
+      properties:
+        tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/TagItemRequest"
+          description: Tags to create/update (replaces all existing tags)
+        messageTemplates:
+          type: array
+          items:
+            $ref: "#/components/schemas/MessageTemplateItemRequest"
+          description: Message templates to create/update (replaces all existing templates)
+        emailSignature:
+          $ref: "#/components/schemas/UpdateEmailSignatureRequest"
+          description: Email signature to update
+        configurations:
+          type: array
+          items:
+            $ref: "#/components/schemas/UpdateConfigurationItemRequest"
+          description: Configurations to update (only selected values can be changed)
+
+    HasActiveTicketResponse:
+      type: object
+      description: Response indicating if customer has an active ticket
+      required:
+        - hasActiveTicket
+      properties:
+        hasActiveTicket:
+          type: boolean
+          description: Whether the customer has any ticket with status 'open' or 'in_progress'
+
+    ChatMessageResponse:
+      type: object
+      description: Message object returned from chat WebSocket events
+      required:
+        - externalId
+        - ticketExternalId
+        - senderType
+        - senderId
+        - content
+        - createdAt
+      properties:
+        externalId:
+          type: string
+          format: uuid
+          description: Public message identifier (UUID v4)
+        ticketExternalId:
+          type: string
+          format: uuid
+          description: External ID of the ticket this message belongs to
+        senderType:
+          type: string
+          enum:
+            - customer
+            - employee
+          description: Type of user who sent the message
+        senderId:
+          type: integer
+          description: Internal ID of the sender
+        content:
+          type: string
+          description: Message text content
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the message was created
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: error
+            statusCode: 400
+            message: Invalid request body
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: error
+            statusCode: 401
+            message: Unauthorized
+
+    Forbidden:
+      description: Access denied
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: error
+            statusCode: 403
+            message: Access denied
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: error
+            statusCode: 404
+            message: Resource not found
+
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: error
+            statusCode: 409
+            message: Email already in use
+
+    TooManyRequests:
+      description: Too many requests
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: integer
+                example: 429
+              message:
+                type: string
+                example: Too many requests, please try again later.
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: error
+            statusCode: 500
+            message: Internal Server Error
